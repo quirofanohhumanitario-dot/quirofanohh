@@ -524,8 +524,8 @@ textarea.fc{resize:vertical}.fr{display:grid;grid-template-columns:1fr 1fr;gap:1
             <div class="al al-s" style="margin-bottom:13px">
               <i class="ti ti-circle-check" style="font-size:18px"></i>
               <div>
-                <div style="font-weight:600;margin-bottom:3px">EmailJS conectado correctamente</div>
-                <div style="font-size:12px">Los correos se envían automáticamente desde <strong>fernandaarias85.fa@gmail.com</strong> vía EmailJS.</div>
+                <div style="font-weight:600;margin-bottom:3px">Brevo conectado correctamente</div>
+                <div style="font-size:12px">Los correos se envían automáticamente desde <strong>quirofanohhumanitario@gmail.com</strong> vía Brevo — 9,000 correos/mes.</div>
               </div>
             </div>
             <div class="card cp">
@@ -913,10 +913,8 @@ Mensaje automático — No responder.`;
     body
   });
   updateNB();
-  // Enviar correo de disponibilidad
-  if(toFree.length>0){
-    sendEmailResend(toFree, subjFree, body).catch(e=>console.warn('Error notif disponibilidad:', e));
-  }
+  // Correo de disponibilidad desactivado — solo notificación interna
+  // if(toFree.length>0){ sendEmailResend(toFree, subjFree, body); }
 }
 
 // ═══════════════════════════════════════════════════
@@ -1218,8 +1216,9 @@ const EMAIL_FN = '/.netlify/functions/send-email';
 
 async function sendEmailResend(to, subject, bodyText) {
   if(!to) return;
+  // Handle array, comma-string, or single email
   const rawList = Array.isArray(to) ? to : String(to).split(',');
-  const recipients = rawList.map(e=>e.trim()).filter(e=>e&&e.includes('@'));
+  const recipients = [...new Set(rawList.map(e=>String(e).trim()).filter(e=>e&&e.includes('@')))];
   if(!recipients.length){ console.warn('No hay destinatarios válidos'); return; }
   try{
     const resp = await fetch(EMAIL_FN, {
@@ -2053,7 +2052,7 @@ $('do-apr').addEventListener('click',async()=>{
   const emailDest=[su.email,sol.solEmail].filter(Boolean);
   const cirUser=ESPEC.find(m=>m.name===su.cir)||RESID.find(m=>m.name===su.cir);
   if(cirUser?.email&&!emailDest.includes(cirUser.email)) emailDest.push(cirUser.email);
-  addNotif(su, sol.esE?'emergencia':'aprobación', emailDest.join(','));
+  addNotif(su, sol.esE?'emergencia':'aprobación', emailDest);
   renderSolList();renderDash();renderAllSurgs();updateNB();
   if(document.getElementById('pg-agenda')?.classList.contains('on'))renderAgenda();
 });
@@ -2072,7 +2071,7 @@ $('do-rch').addEventListener('click',async()=>{
   const emailDest=[sol.solEmail].filter(Boolean);
   const cirUser=ESPEC.find(m=>m.name===sol.cir)||RESID.find(m=>m.name===sol.cir);
   if(cirUser?.email&&!emailDest.includes(cirUser.email)) emailDest.push(cirUser.email);
-  addNotif({proc:sol.proc,pac:sol.pac,fecha:sol.fecha,hora:sol.hora,or:sol.or,cir:sol.cir,ane:sol.aneNom,dur:sol.dur,equ:sol.equ},'rechazo',emailDest.join(','),mot);
+  addNotif({proc:sol.proc,pac:sol.pac,fecha:sol.fecha,hora:sol.hora,or:sol.or,cir:sol.cir,ane:sol.aneNom,dur:sol.dur,equ:sol.equ},'rechazo',emailDest,mot);
   renderSolList();renderDash();updateNB();
   renderAvailPanel(iso(D),'avail-panel-agenda');
   renderAvailPanel(iso(D),'avail-panel-sol');

@@ -1868,10 +1868,16 @@ function allMeds(){return[...ESPEC,...RESID];}
 // ═══════════════════════════════════════════════════
 function renderDash(){
   checkUrgBanner();
-  const ts=iso(D), td=SURGS.filter(s=>s.fecha===ts&&!(String(s.id).startsWith('sol')&&s.est==='Pendiente'));
+  // Excluir solicitudes pendientes (sol%) del conteo del día
+  const ts=iso(D);
+  const td=SURGS.filter(s=>
+    s.fecha===ts &&
+    !String(s.id).startsWith('sol') &&
+    s.est!=='Cancelada'
+  );
   const ws=new Date(D);ws.setDate(D.getDate()-D.getDay()+1);
   const we=new Date(ws);we.setDate(ws.getDate()+6);
-  const wk=SURGS.filter(s=>s.fecha>=iso(ws)&&s.fecha<=iso(we));
+  const wk=SURGS.filter(s=>s.fecha>=iso(ws)&&s.fecha<=iso(we)&&!String(s.id).startsWith('sol'));
   const pe=SOLS.filter(s=>s.est==='Pendiente'), em=pe.filter(s=>isEmerg(s.pri));
   $('d-stats').innerHTML=`
     <div class="scard"><div class="slbl">Cirugías hoy</div><div class="sval">${td.length}</div><div class="ssub">${td.filter(s=>s.est==='Completada').length} completadas · ${td.filter(s=>s.est==='Programada').length} pendientes</div></div>

@@ -1899,16 +1899,22 @@ function renderDash(){
     // Cirugías reales de HOY para este quirófano
     const qs=td.filter(s=>s.or===q&&['Programada','En curso','Completada'].includes(s.est));
     const inC=qs.find(s=>s.est==='En curso');
-    const nxtHoy=qs.filter(s=>s.est==='Programada').sort((a,b)=>a.hora.localeCompare(b.hora))[0];
+
+    // Próxima de HOY: solo cirugías PROGRAMADAS cuya hora aún no ha pasado
+    const nowMinsD = new Date().getHours()*60 + new Date().getMinutes();
+    const nxtHoy=qs
+      .filter(s=>s.est==='Programada' && t2m(s.hora) > nowMinsD)
+      .sort((a,b)=>a.hora.localeCompare(b.hora))[0];
+
     const hasE=qs.some(s=>isEmerg(s.pri)&&['Programada','En curso'].includes(s.est));
 
     // Calcular disponibilidad real de HOY con los 20 min de limpieza incluidos
     const slotHoy = getNextFreeSlot(iso(D), q, 60);
 
-    // Si no hay más cirugías hoy — buscar próxima en los próximos 30 días
+    // Buscar próxima cirugía futura cuando no hay más programadas hoy
     let proxFutura = null;
-    if(!nxtHoy && slotHoy !== 'Sin disponibilidad hoy'){
-      for(let i=1; i<=30; i++){
+    if(!inC && !nxtHoy){
+      for(let i=1; i<=60; i++){
         const fd = new Date(D); fd.setDate(fd.getDate()+i);
         const fi = iso(fd);
         const futSurgs = SURGS.filter(s=>
@@ -1917,7 +1923,10 @@ function renderDash(){
           !String(s.id).startsWith('sol')
         ).sort((a,b)=>a.hora.localeCompare(b.hora));
         if(futSurgs.length){
-          proxFutura = {...futSurgs[0], fechaLabel: fd.toLocaleDateString('es-EC',{weekday:'short',day:'numeric',month:'short'})};
+          proxFutura = {
+            ...futSurgs[0],
+            fechaLabel: fd.toLocaleDateString('es-EC',{weekday:'short',day:'numeric',month:'short'})
+          };
           break;
         }
       }

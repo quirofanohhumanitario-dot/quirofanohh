@@ -586,8 +586,16 @@ textarea.fc{resize:vertical}.fr{display:grid;grid-template-columns:1fr 1fr;gap:1
           </div>
           <div id="cc-fecha-lbl" style="font-size:13px;font-weight:700;color:var(--blu);margin-left:auto"></div>
         </div>
-        <div class="al al-i" style="margin-bottom:12px"><i class="ti ti-info-circle"></i><div>Visualiza la agenda del día, confirma la notificación de cada paciente y registra el resultado.</div></div>
-        <div id="cc-list" class="card"></div>
+        <div class="card cp" style="padding:0;overflow:hidden">
+          <!-- TABS -->
+          <div class="tbar" style="border-bottom:1px solid var(--brd);padding:0 16px;margin:0">
+            <div class="tab on" data-cct="pend" onclick="setCCTab('pend')">⏳ Pendientes <span class="nb" id="cc-nb-pend" style="background:var(--amb);color:#fff;margin-left:4px"></span></div>
+            <div class="tab" data-cct="conf" onclick="setCCTab('conf')">✅ Confirmados <span class="nb" id="cc-nb-conf" style="background:var(--grn);color:#fff;margin-left:4px"></span></div>
+            <div class="tab" data-cct="noc" onclick="setCCTab('noc')">❌ No confirmados <span class="nb" id="cc-nb-noc" style="background:var(--red);color:#fff;margin-left:4px"></span></div>
+            <div class="tab" data-cct="sr" onclick="setCCTab('sr')">📵 Sin respuesta <span class="nb" id="cc-nb-sr" style="background:var(--amb);color:#fff;margin-left:4px"></span></div>
+          </div>
+          <div id="cc-list" style="min-height:120px"></div>
+        </div>
       </div>
 
       <!-- CONFIGURACIÓN -->
@@ -1314,7 +1322,7 @@ setInterval(async()=>{
       'pg-agenda': ()=>renderAgenda(),
       'pg-cirugias': ()=>renderAllSurgs(),
       'pg-solicitudes': ()=>renderSolList(),
-      'pg-callcenter': ()=>renderCallCenter(),
+      'pg-callcenter': ()=>renderCCList(),
     };
     Object.entries(activePages).forEach(([pgId, fn])=>{
       if(document.getElementById(pgId)?.classList.contains('on')) fn();
@@ -1882,7 +1890,14 @@ function updateNB(){
   const nc=$('nc');if(nc){nc.textContent=unreadNotifs;nc.style.display=unreadNotifs?'flex':'none';}
   checkUrgBanner();
 }
-function goEmerg(){goPage('solicitudes');setTimeout(()=>{document.querySelectorAll('[data-st]').forEach(t=>t.classList.remove('on'));const t=document.querySelector('[data-st="emerg"]');if(t){t.classList.add('on');solTab='emerg';renderSolList();}},200);}
+function goEmerg(){
+  goPage('solicitudes');
+  setTimeout(()=>{
+    solTab='emerg';
+    document.querySelectorAll('[data-st]').forEach(t=>t.classList.toggle('on',t.dataset.st==='emerg'));
+    renderSolList();
+  },250);
+}
 function allMeds(){return[...ESPEC,...RESID];}
 
 // ═══════════════════════════════════════════════════
@@ -2478,13 +2493,13 @@ function renderSolList(){
     s.solId===CU?.id
   );
   if(solTab==='pend')list=list.filter(s=>s.est==='Pendiente'&&!isEmerg(s.pri));
-  else if(solTab==='emerg')list=list.filter(s=>s.est==='Pendiente'&&isEmerg(s.pri));
-  else if(solTab==='apro')list=list.filter(s=>s.est==='Aprobada');
+  else if(solTab==='emerg')list=list.filter(s=>isEmerg(s.pri)); // TODAS las emergencias sin importar estado
+  else if(solTab==='apro')list=list.filter(s=>s.est==='Aprobada'&&!isEmerg(s.pri)); // Aprobadas no emergencias
   else list=list.filter(s=>s.est==='Rechazada');
   // Más reciente primero
   list.sort((a,b)=>String(b.id).localeCompare(String(a.id)));
   const pend=SOLS.filter(s=>s.est==='Pendiente'&&!isEmerg(s.pri));
-  const emrg=SOLS.filter(s=>s.est==='Pendiente'&&isEmerg(s.pri));
+  const emrg=SOLS.filter(s=>isEmerg(s.pri)); // contar TODAS las emergencias
   const np=$('nb-pend');if(np){np.textContent=pend.length;np.classList.toggle('show',pend.length>0);}
   const ne=$('nb-emerg');if(ne){ne.textContent=emrg.length;ne.classList.toggle('show',emrg.length>0);}
   const cont=$('sol-list');cont.innerHTML='';
@@ -3026,59 +3041,105 @@ function ccNavDate(d){
   $('cc-fecha').value=iso(cur);
   renderCallCenter();
 }
+let ccTab='pend';
+
+function setCCTab(t){
+  ccTab=t;
+  document.querySelectorAll('[data-cct]').forEach(el=>el.classList.toggle('on',el.dataset.cct===t));
+  renderCCList();
+}
+
 function renderCallCenter(){
   const fecha=$('cc-fecha').value||iso(D);
   const lbl=$('cc-fecha-lbl');
-  if(lbl){const fmtD=new Date(fecha+'T12:00:00').toLocaleDateString('es-EC',{weekday:'long',day:'numeric',month:'long',year:'numeric'});lbl.textContent=fmtD.charAt(0).toUpperCase()+fmtD.slice(1);}
-  const surgs=SURGS.filter(s=>s.fecha===fecha&&s.est!=='Cancelada'&&!String(s.id).startsWith('sol')).sort((a,b)=>a.hora.localeCompare(b.hora));
+  if(lbl){
+    const fmtD=new Date(fecha+'T12:00:00').toLocaleDateString('es-EC',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+    lbl.textContent=fmtD.charAt(0).toUpperCase()+fmtD.slice(1);
+  }
+  renderCCList();
+}
+
+function renderCCList(){
+  const fecha=$('cc-fecha').value||iso(D);
+  const surgs=SURGS.filter(s=>s.fecha===fecha&&s.est!=='Cancelada'&&!String(s.id).startsWith('sol'))
+    .sort((a,b)=>a.hora.localeCompare(b.hora));
   const cont=$('cc-list');if(!cont)return;
-  if(!surgs.length){cont.innerHTML='<div style="padding:30px;text-align:center;color:var(--mut);font-size:13px"><i class="ti ti-calendar-off" style="font-size:28px;display:block;margin-bottom:8px"></i>No hay cirugías programadas para esta fecha.</div>';return;}
+
+  const pendientes = surgs.filter(s=>!CC_STORE[s.id]?.notified);
+  const confirmados = surgs.filter(s=>CC_STORE[s.id]?.notified&&CC_STORE[s.id]?.result==='Confirmado');
+  const noConf     = surgs.filter(s=>CC_STORE[s.id]?.notified&&CC_STORE[s.id]?.result==='No confirmado');
+  const sinResp    = surgs.filter(s=>CC_STORE[s.id]?.notified&&CC_STORE[s.id]?.result==='Sin respuesta');
+
+  // Actualizar badges de tabs
+  const upd=(id,n)=>{const el=$(id);if(el){el.textContent=n;el.style.display=n?'inline-flex':'none';}};
+  upd('cc-nb-pend',pendientes.length);
+  upd('cc-nb-conf',confirmados.length);
+  upd('cc-nb-noc',noConf.length);
+  upd('cc-nb-sr',sinResp.length);
+
+  const lists={pend:pendientes,conf:confirmados,noc:noConf,sr:sinResp};
+  const current=lists[ccTab]||pendientes;
+
   cont.innerHTML='';
-  const pendientes=surgs.filter(s=>!CC_STORE[s.id]?.notified);
-  const confirmados=surgs.filter(s=>CC_STORE[s.id]?.notified&&CC_STORE[s.id]?.result==='Confirmado');
-  const noConf=surgs.filter(s=>CC_STORE[s.id]?.notified&&CC_STORE[s.id]?.result==='No confirmado');
-  const sinResp=surgs.filter(s=>CC_STORE[s.id]?.notified&&CC_STORE[s.id]?.result==='Sin respuesta');
-  function buildCard(s){
+
+  if(!surgs.length){
+    cont.innerHTML='<div style="padding:30px;text-align:center;color:var(--mut);font-size:13px"><i class="ti ti-calendar-off" style="font-size:28px;display:block;margin-bottom:8px"></i>No hay cirugías programadas para esta fecha.</div>';
+    return;
+  }
+  if(!current.length){
+    const msgs={pend:'Sin cirugías pendientes de notificación.',conf:'Sin pacientes confirmados aún.',noc:'Sin pacientes no confirmados.',sr:'Sin pacientes sin respuesta.'};
+    cont.innerHTML='<div style="padding:24px;text-align:center;color:var(--mut);font-size:13px">'+( msgs[ccTab]||'Sin registros.')+'</div>';
+    return;
+  }
+
+  current.forEach(s=>{
     const cc=CC_STORE[s.id]||{};
     const tel=extractTel(s.obs);
     const rc=cc.result==='Confirmado'?'var(--grn)':cc.result==='No confirmado'?'var(--red)':'var(--amb)';
-    const div=document.createElement('div');
-    div.style.cssText=`padding:12px 16px;border-bottom:1px solid var(--brd);display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap;${cc.notified?'background:var(--surf2);':''}`;
-    const notifLine = cc.notified
-      ? '<div style="font-size:11px;font-weight:600;color:'+rc+';margin-top:3px">'+(cc.result==='Confirmado'?'✅':cc.result==='No confirmado'?'❌':'📵')+' '+cc.result+(cc.causa?' — '+cc.causa:'')+'</div>'+(cc.obs?'<div style="font-size:10px;color:var(--mut)">'+cc.obs+'</div>':'')
-      : '';
-    div.innerHTML='<div style="flex:1;min-width:200px">'
-      +'<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">'
-      +'<span style="font-size:12px;font-weight:700;font-family:monospace;color:var(--blu)">'+s.hora+'</span>'
-      +'<span class="badge '+(s.or==='Q1'?'bbl':s.or==='Q2'?'bpu':s.or==='QA'?'bam':'btl')+'" style="font-size:9px">'+(s.or==='QA'?'Q.Amb':s.or)+'</span>'
-      +'<span style="font-size:12px;font-weight:600">'+s.proc.substring(0,28)+'</span></div>'
-      +'<div style="font-size:12px;font-weight:600">'+s.pac+(s.edad!=null?' <span style="font-size:10px;color:var(--mut)">('+s.edad+'a)</span>':'')+'</div>'
-      +'<div style="font-size:11px;color:var(--mut)">'+(tel?'📞 <strong style="color:var(--txt)">'+tel+'</strong> &nbsp;·&nbsp; ':'<span style="color:var(--red)">Sin tel. &nbsp;·&nbsp; </span>')+s.cir+' · '+(s.ane||'Anest. por asignar')+'</div>'
-      +notifLine
+    const isEmergS=isEmerg(s.pri);
+    const row=document.createElement('div');
+    row.style.cssText='padding:13px 16px;border-bottom:1px solid var(--brd);display:flex;align-items:flex-start;gap:10px;'+(isEmergS?'background:#FFF0F0;':'');
+
+    // Badge de estado igual al de solicitudes
+    const stBadge=cc.notified
+      ? '<span class="badge '+(cc.result==='Confirmado'?'btl':cc.result==='No confirmado'?'brd':'bam')+'" style="font-size:10px;flex-shrink:0">'+(cc.result==='Confirmado'?'✅ Confirmado':cc.result==='No confirmado'?'❌ No confirmado':'📵 Sin respuesta')+'</span>'
+      : '<span class="badge bam" style="font-size:10px;flex-shrink:0">⏳ Pendiente</span>';
+
+    row.innerHTML='<div style="flex:1;min-width:0">'
+      +'<div style="display:flex;align-items:center;gap:7px;margin-bottom:4px;flex-wrap:wrap">'
+      +stBadge
+      +(isEmergS?'<span class="badge brd" style="font-size:10px">🔴 Emergencia</span>':'')
+      +'<span style="font-size:13px;font-weight:700">'+s.proc+'</span>'
       +'</div>'
-      +'<button class="btn '+(cc.notified?'btn-xs':'btn-sm btn-gr')+'" onclick="openCC(\''+s.id+'\')" style="flex-shrink:0">'
-      +'<i class="ti ti-'+(cc.notified?'edit':'phone')+'"></i> '+(cc.notified?'Editar':'Registrar')+'</button>';
-    return div;
-  }
-  function mkGroup(list,title,color,bg,icon,gid,open){
-    if(!list.length)return;
-    const hdr=document.createElement('div');
-    hdr.style.cssText=`padding:8px 14px;background:${bg};border-bottom:1px solid var(--brd);display:flex;align-items:center;gap:7px;cursor:pointer;margin-top:4px;`;
-    hdr.innerHTML=`<i class="ti ${icon}" style="color:${color}"></i><strong style="font-size:12px;color:${color}">${title}</strong><span style="margin-left:4px;background:${color};color:#fff;border-radius:10px;padding:1px 7px;font-size:11px">${list.length}</span><i class="ti ti-chevron-${open?'down':'right'}" id="cc-ico-${gid}" style="margin-left:auto;color:var(--mut)"></i>`;
-    const body=document.createElement('div');body.id=`cc-body-${gid}`;body.style.display=open?'block':'none';
-    list.forEach(s=>body.appendChild(buildCard(s)));
-    hdr.addEventListener('click',()=>{const o=body.style.display!=='none';body.style.display=o?'none':'block';$(`cc-ico-${gid}`).className=`ti ti-chevron-${o?'right':'down'}`;});
-    cont.appendChild(hdr);cont.appendChild(body);
-  }
-  mkGroup(pendientes,'⏳ Pendientes de notificación','var(--blu)','#EEF2FB','ti-phone-off','pend',true);
-  mkGroup(confirmados,'✅ Confirmados','var(--grn)','#E8F4EA','ti-check','conf',false);
-  mkGroup(noConf,'❌ No confirmados','var(--red)','#FEE2E2','ti-x','noc',false);
-  mkGroup(sinResp,'📵 Sin respuesta','#9A6200','#FBF0DC','ti-phone-off','sr',false);
-  const res=document.createElement('div');
-  res.style.cssText='padding:8px 14px;background:var(--surf2);font-size:11px;color:var(--mut);border-top:2px solid var(--brd);display:flex;gap:14px;flex-wrap:wrap;margin-top:2px;';
-  res.innerHTML=`<strong>Total: ${surgs.length}</strong> &nbsp;·&nbsp; <span style="color:var(--grn)">✅ ${confirmados.length}</span> &nbsp;·&nbsp; <span style="color:var(--red)">❌ ${noConf.length}</span> &nbsp;·&nbsp; <span style="color:var(--amb)">📵 ${sinResp.length}</span> &nbsp;·&nbsp; ⏳ Pendientes: ${pendientes.length}`;
-  cont.appendChild(res);
+      +'<div style="font-size:12px;color:var(--mut);margin-bottom:2px">'
+      +'<strong style="color:var(--txt)">'+s.hora+'</strong>'
+      +' · '+(s.or==='QA'?'Q.Ambulatorio':s.or)
+      +' · '+s.cir
+      +'</div>'
+      +'<div style="font-size:13px;margin-bottom:2px">Paciente: <strong>'+s.pac+'</strong>'+(s.edad!=null?' ('+s.edad+' a)':'')+'</div>'
+      +'<div style="font-size:12px;color:var(--mut)">'
+      +(tel?'📞 <strong style="color:var(--txt)">'+tel+'</strong>':'<span style="color:var(--red);font-size:11px">Sin teléfono registrado</span>')
+      +(s.ane?' · Anest: '+s.ane:'')
+      +'</div>'
+      +(cc.notified&&cc.causa?'<div style="font-size:11px;color:'+rc+';margin-top:3px;font-weight:600">'+cc.causa+'</div>':'')
+      +(cc.notified&&cc.obs?'<div style="font-size:11px;color:var(--mut)">'+cc.obs+'</div>':'')
+      +'</div>'
+      +'<button class="btn '+(cc.notified?'btn-xs btn-sm':'btn-sm btn-gr')+'" onclick="openCC(\''+s.id+'\')" style="flex-shrink:0;margin-top:2px">'
+      +'<i class="ti ti-'+(cc.notified?'edit':'phone')+'"></i> '+(cc.notified?'Editar':'Notificar')+'</button>';
+    cont.appendChild(row);
+  });
+
+  // Pie con resumen total
+  const pie=document.createElement('div');
+  pie.style.cssText='padding:8px 16px;background:var(--surf2);font-size:11px;color:var(--mut);border-top:1px solid var(--brd);display:flex;gap:14px;flex-wrap:wrap;';
+  pie.innerHTML='Total: <strong>'+surgs.length+'</strong>'
+    +' &nbsp;·&nbsp; <span style="color:var(--grn)">✅ '+confirmados.length+'</span>'
+    +' &nbsp;·&nbsp; <span style="color:var(--red)">❌ '+noConf.length+'</span>'
+    +' &nbsp;·&nbsp; <span style="color:var(--amb)">📵 '+sinResp.length+'</span>'
+    +' &nbsp;·&nbsp; ⏳ Pendientes: '+pendientes.length;
+  cont.appendChild(pie);
 }
+
 function openCC(id){
   ccSurgId=id;
   const s=SURGS.find(x=>String(x.id)===String(id));if(!s)return;
@@ -3107,7 +3168,7 @@ function saveCC(){
   const obs=$('cc-obs-nota').value.trim();
   CC_STORE[ccSurgId]={notified:true,result,causa,obs};
   cls('ov-cc-confirm');
-  renderCallCenter();
+  renderCCList();
 }
 
 

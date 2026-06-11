@@ -489,7 +489,12 @@ textarea.fc{resize:vertical}.fr{display:grid;grid-template-columns:1fr 1fr;gap:1
             <button class="btn btn-p btn-sm" onclick="openCirugia()"><i class="ti ti-plus"></i>Nueva</button>
           </div>
         </div>
-        <div class="tw card"><table><thead><tr><th>Fecha</th><th>Hora</th><th>Procedimiento · Paciente</th><th>Médico</th><th>Anestesiólogo</th><th>Quirófano</th><th>Prioridad</th><th>Estado</th><th>Acciones</th></tr></thead><tbody id="tb-all"></tbody></table></div>
+        <!-- TABS — incluye Revisión CC solo para admin -->
+        <div class="tbar" id="cir-tabs" style="border-bottom:1px solid var(--brd);margin-bottom:10px;display:none">
+          <div class="tab on" data-cirt="all" onclick="setCirTab('all')">Todas</div>
+          <div class="tab" data-cirt="cc" onclick="setCirTab('cc')">⚠️ Revisión Call Center <span class="nb" id="cc-review-nb" style="background:var(--red);color:#fff;margin-left:4px"></span></div>
+        </div>
+        <div class="tw card"><table><thead><tr><th>Fecha</th><th>Hora</th><th>Procedimiento · Paciente</th><th>Médico</th><th>Anestesiólogo</th><th>Quirófano</th><th>Prioridad</th><th>Estado</th><th id="cc-col-hdr" style="display:none">Call Center</th><th>Acciones</th></tr></thead><tbody id="tb-all"></tbody></table></div>
       </div>
 
       <!-- SOLICITUDES -->
@@ -660,41 +665,96 @@ textarea.fc{resize:vertical}.fr{display:grid;grid-template-columns:1fr 1fr;gap:1
     <div class="mh" id="cir-mh"><div class="mt" id="cir-mt">Programar cirugía</div><button class="btn btn-sm" onclick="cls('ov-cir')"><i class="ti ti-x"></i></button></div>
     <div class="mb">
       <div id="emerg-alert" class="al al-u" style="display:none"><i class="ti ti-alert-triangle"></i><strong>EMERGENCIA — Notificación inmediata a todo el equipo.</strong></div>
-      <div class="fr"><div class="fg"><label class="fl">Fecha *</label><input type="date" class="fc" id="c-fecha"></div><div class="fg"><label class="fl">Hora inicio * <span style="font-size:10px;color:var(--mut)">(24h)</span></label><div class="time-wheel-wrap"><input type="time" class="fc time-wheel-input" id="c-hora"><button type="button" class="twb" title="Selector rápido de hora" onclick="openTimeWheel('c-hora')"><i class="ti ti-clock"></i></button></div></div></div>
-      <div class="fg"><label class="fl">Procedimiento *</label><input type="text" class="fc" id="c-proc" placeholder="Ej: Colecistectomía laparoscópica"></div>
+
+      <!-- FECHA Y HORA -->
       <div class="fr">
-        <div class="fg"><label class="fl">Especialidad</label><select class="fc" id="c-esp"><option>Cirugía general</option><option>Traumatología</option><option>Ginecología y obstetricia</option><option>Urología</option><option>Neurocirugía</option><option>Cirugía vascular</option><option>Cardiocirugía</option><option>Cirugía pediátrica</option><option>Oftalmología</option><option>Otorrinolaringología</option></select></div>
-        <div class="fg"><label class="fl">Quirófano *</label><select class="fc" id="c-or"><option value="Q1">Quirófano 1</option><option value="Q2">Quirófano 2</option><option value="Q3">Quirófano 3</option><option value="QA">Quirófano Ambulatorio</option></select></div>
+        <div class="fg"><label class="fl">Fecha *</label><input type="date" class="fc" id="c-fecha"></div>
+        <div class="fg"><label class="fl">Hora inicio * <span style="font-size:10px;color:var(--mut)">(24h)</span></label>
+          <div class="time-wheel-wrap"><input type="time" class="fc time-wheel-input" id="c-hora"><button type="button" class="twb" onclick="openTimeWheel('c-hora')"><i class="ti ti-clock"></i></button></div>
+        </div>
       </div>
+
+      <!-- PROCEDIMIENTO -->
+      <div class="fg"><label class="fl">Procedimiento *</label><input type="text" class="fc" id="c-proc" placeholder="Ej: Colecistectomía laparoscópica"></div>
+
+      <!-- ESPECIALIDAD Y MÉDICO — pre-llenado para especialistas, selector para admin -->
       <div class="fr">
+        <div class="fg">
+          <label class="fl">Especialidad</label>
+          <!-- Para especialistas: solo texto fijo -->
+          <div id="c-esp-display" style="display:none;padding:8px 12px;background:var(--surf2);border:1px solid var(--brd);border-radius:var(--r);font-size:13px;font-weight:600;color:var(--blu)"></div>
+          <!-- Para admin: selector -->
+          <select class="fc" id="c-esp" style="display:none">
+            <option>Anestesiología</option><option>Cardiología</option><option>Cirugía Cardiovascular</option>
+            <option>Cirugía de Cabeza y Cuello</option><option>Cirugía General</option><option>Cirugía Maxilofacial</option>
+            <option>Cirugía Pediátrica</option><option>Cirugía Plástica y Reconstructiva</option><option>Cirugía Torácica</option>
+            <option>Cirugía Vascular</option><option>Coloproctología</option><option>Dermatología</option>
+            <option>Gastroenterología</option><option>Ginecología y Obstetricia</option><option>Mastología</option>
+            <option>Neurocirugía</option><option>Neurología</option><option>Oftalmología</option>
+            <option>Oncología</option><option>Ortopedia y Traumatología</option><option>Otorrinolaringología</option>
+            <option>Traumatología</option><option>Urología</option>
+          </select>
+        </div>
+        <!-- QUIRÓFANO — solo admin -->
+        <div class="fg" id="c-or-box">
+          <label class="fl">Quirófano *</label>
+          <select class="fc" id="c-or"><option value="Q1">Quirófano 1</option><option value="Q2">Quirófano 2</option><option value="Q3">Quirófano 3</option><option value="QA">Quirófano Ambulatorio</option></select>
+        </div>
+      </div>
+
+      <!-- MÉDICO RESPONSABLE -->
+      <!-- Para especialistas: texto fijo con su nombre -->
+      <div id="c-cir-display" style="display:none" class="fg">
+        <label class="fl">Médico responsable</label>
+        <div style="padding:8px 12px;background:var(--surf2);border:1px solid var(--brd);border-radius:var(--r);font-size:13px;font-weight:600;color:var(--txt)" id="c-cir-nombre"></div>
+      </div>
+      <!-- Para admin: campos de equipo completo -->
+      <div class="fr" id="c-equipo-box">
         <div class="fg"><label class="fl">Médico responsable *</label><select class="fc" id="c-cir"></select></div>
         <div class="fg"><label class="fl">Anestesiólogo</label><select class="fc" id="c-ane"></select></div>
       </div>
-      <div class="fr">
+      <!-- Instrumentista y ayudante — solo admin -->
+      <div class="fr" id="c-res-box">
         <div class="fg"><label class="fl">Instrumentista <span style="font-size:10px;color:var(--mut)">(residente)</span></label><select class="fc" id="c-inst"><option value="">— Asignar después —</option></select></div>
         <div class="fg"><label class="fl">Ayudante <span style="font-size:10px;color:var(--mut)">(residente)</span></label><select class="fc" id="c-ayu"><option value="">— Asignar después —</option></select></div>
       </div>
+
+      <!-- DURACIÓN Y PRIORIDAD -->
       <div class="fr">
         <div class="fg"><label class="fl">Duración estimada (min)</label><input type="number" class="fc" id="c-dur" value="90" min="15" max="600" step="15"></div>
         <div class="fg"><label class="fl">Prioridad *</label><select class="fc" id="c-pri"><option value="Electiva">Electiva</option><option value="Ambulatoria">Ambulatoria</option><option value="Urgente">Urgente</option><option value="Emergencia">🔴 Emergencia</option></select></div>
       </div>
-      <!-- EXTRAMURAL CHECKBOX -->
+
+      <!-- EXTRAMURAL -->
       <div style="background:var(--amb-l);border:1px solid #E8D5A0;border-radius:var(--r);padding:10px 14px;margin-bottom:10px;display:flex;align-items:center;gap:10px">
         <input type="checkbox" id="c-extramural" style="width:16px;height:16px;accent-color:var(--amb);cursor:pointer;flex-shrink:0" onchange="toggleExtramural()">
         <div>
           <label for="c-extramural" style="font-size:13px;font-weight:600;color:var(--amb);cursor:pointer">Profesional extramural</label>
-          <div style="font-size:11px;color:var(--mut)">Médico que no pertenece a la institución. No requiere Parte Quirúrgico ni HC en la solicitud inicial.</div>
+          <div style="font-size:11px;color:var(--mut)">Médico que no pertenece a la institución.</div>
         </div>
       </div>
+
+      <!-- PARTE QUIRÚRGICO E HC — solo admin (oculto para especialistas) -->
       <div id="c-pq-box" class="fg"><label class="fl">Parte Quirúrgico Nro. *</label><input type="text" class="fc" id="c-pq" placeholder="Ej: PQ-2024-0001"></div>
       <div id="c-hc-box" class="fg"><label class="fl">Nº Historia Clínica (HC)</label><input type="text" class="fc" id="c-hc" placeholder="Ej: HC-2024-001234"></div>
+
+      <!-- DATOS DEL PACIENTE -->
       <div class="fr">
         <div class="fg"><label class="fl">Paciente (Apellido, Nombre) *</label><input type="text" class="fc" id="c-pac"></div>
-        <div class="fg"><label class="fl">Edad del paciente</label><input type="number" class="fc" id="c-edad" min="0" max="130" placeholder="años" style="width:100%"></div>
+        <div class="fg"><label class="fl">Cédula del paciente *</label><input type="text" class="fc" id="c-ced" placeholder="Ej: 0102030405" maxlength="13"></div>
+      </div>
+      <div class="fr">
+        <div class="fg"><label class="fl">Fecha de nacimiento</label><input type="date" class="fc" id="c-fnac" onchange="calcEdad()"></div>
+        <div class="fg"><label class="fl">Edad (calculada)</label><input type="text" class="fc" id="c-edad-txt" placeholder="Se calcula automáticamente" readonly style="background:var(--surf2);color:var(--mut)"><input type="hidden" id="c-edad"></div>
       </div>
       <div class="fg"><label class="fl">Teléfono del paciente</label><input type="tel" class="fc" id="c-tel" placeholder="Ej: 0987654321"></div>
-      <div class="fg"><label class="fl">Equipamiento especial</label><input type="text" class="fc" id="c-equ" placeholder="Ej: Laparoscopio, fluoroscopio, malla..."></div>
+
+      <!-- EQUIPAMIENTO — visible para todos -->
+      <div class="fg" id="c-equ-box"><label class="fl">Equipamiento especial</label><input type="text" class="fc" id="c-equ" placeholder="Ej: Laparoscopio, fluoroscopio, malla..."></div>
+
+      <!-- OBSERVACIONES -->
       <div class="fg"><label class="fl">Observaciones / Alergias</label><textarea class="fc" id="c-obs" rows="2"></textarea></div>
+
       <div id="conf-box" class="al al-u" style="display:none;flex-direction:column;gap:4px"><i class="ti ti-lock" style="font-size:18px"></i><div id="conf-msg"></div></div>
     </div>
     <div class="mf"><button class="btn" onclick="cls('ov-cir')">Cancelar</button><button class="btn btn-p" id="save-cir">Guardar</button></div>
@@ -722,15 +782,14 @@ textarea.fc{resize:vertical}.fr{display:grid;grid-template-columns:1fr 1fr;gap:1
       </div>
       <div class="fg"><label class="fl">Quirófano confirmado</label>
         <select class="fc" id="apr-or" onchange="showOrHint(this.value)"><option value="Q1">Quirófano 1</option><option value="Q2">Quirófano 2</option><option value="Q3">Quirófano 3</option><option value="QA">Quirófano Ambulatorio</option></select>
-        <div id="or-hint" style="font-size:11px;color:var(--tel);margin-top:4px"></div></div>
-      <div class="fg"><label class="fl">Notas del administrador</label><textarea class="fc" id="apr-obs" rows="2"></textarea></div>
-      <div id="apr-hc-box" style="display:none">
-        <div class="al al-w" style="margin-bottom:8px"><i class="ti ti-user-exclamation"></i><div><strong>Profesional extramural:</strong> Complete el Parte Quirúrgico y HC si los tiene disponibles.</div></div>
-        <div class="fr">
-          <div class="fg"><label class="fl">Parte Quirúrgico Nro.</label><input type="text" class="fc" id="apr-pq" placeholder="Ej: PQ-2024-0001"></div>
-          <div class="fg"><label class="fl">Nº Historia Clínica</label><input type="text" class="fc" id="apr-hc" placeholder="Ej: HC-2024-001234"></div>
-        </div>
+        <div id="or-hint" style="font-size:11px;color:var(--tel);margin-top:4px"></div>
       </div>
+      <div class="fr">
+        <div class="fg"><label class="fl">Parte Quirúrgico Nro.</label><input type="text" class="fc" id="apr-pq" placeholder="Ej: PQ-2024-0001"></div>
+        <div class="fg"><label class="fl">Nº Historia Clínica</label><input type="text" class="fc" id="apr-hc" placeholder="Ej: HC-2024-001234"></div>
+      </div>
+      <div class="fg"><label class="fl">Equipamiento especial</label><input type="text" class="fc" id="apr-equ" placeholder="Ej: Laparoscopio, malla..."></div>
+      <div class="fg"><label class="fl">Notas del administrador</label><textarea class="fc" id="apr-obs" rows="2"></textarea></div>
     </div>
     <div class="mf"><button class="btn" onclick="cls('ov-apr')">Cancelar</button><button class="btn btn-s" id="do-apr"><i class="ti ti-check"></i>Aprobar y notificar</button></div>
   </div>
@@ -1845,6 +1904,10 @@ const EC={Completada:'btl','En curso':'bco',Programada:'bbl',Cancelada:'brd',Rep
 const AV={blu:['#E8F0FB','#1A5FB4'],tel:['#E4F4EE','#1A7A5E'],pur:['#EFEBFB','#5B3FA6'],cor:['#F7EDEA','#B84A2E'],amb:['#FBF0DC','#9A6200'],grn:['#E8F4EA','#2E7A3C'],bgy:['#EDEDEA','#6B6B6A']};
 const ini=n=>n.replace(/Dr\.|Dra\.|Lic\.?\s*/g,'').trim().split(' ').map(w=>w[0]).slice(0,2).join('');
 function extractTel(obs){if(!obs)return '';const m=obs.match(/TEL[_:]PAC:?([^\s|]+)/)||obs.match(/TEL[_:]([^\s|]+)/);return m?m[1]:'';}
+function extractCed(obs){if(!obs)return '';const m=obs.match(/CED:([^\s|]+)/);return m?m[1]:'';}
+function extractFnac(obs){if(!obs)return '';const m=obs.match(/FNAC:([^\s|]+)/);return m?m[1]:'';}
+function extractCCStatus(obs){if(!obs)return null;const m=obs.match(/CC_STATUS:([^|]+)/);return m?m[1].trim():null;}
+function extractCCCausa(obs){if(!obs)return '';const m=obs.match(/CC_CAUSA:([^|]+)/);return m?m[1].trim():'';}
 function orLabel(or){return or==='Q1'?'Quirófano 1':or==='Q2'?'Quirófano 2':or==='Q3'?'Quirófano 3':or==='QA'?'Quirófano Ambulatorio':or;}
 // Hora actual siempre en formato 24h HH:MM — nunca usa toLocaleTimeString
 function now24h(){const n=new Date();return pad(n.getHours())+':'+pad(n.getMinutes());}
@@ -1852,14 +1915,18 @@ function now24h(){const n=new Date();return pad(n.getHours())+':'+pad(n.getMinut
 function nowDateStr(){const n=new Date();return n.toLocaleDateString('es-EC',{day:'numeric',month:'long',year:'numeric'});}
 
 function checkUrgBanner(){
-  // Emergencias pendientes de aprobación
   const emPend=SOLS.filter(s=>s.est==='Pendiente'&&isEmerg(s.pri));
-  // Emergencias/urgencias programadas para hoy
   const emHoy=SURGS.filter(s=>
     s.fecha===iso(D) &&
     isEmerg(s.pri) &&
     ['Programada','En curso'].includes(s.est) &&
     !String(s.id).startsWith('sol')
+  );
+  // Cirugías con reporte negativo del Call Center que necesitan decisión
+  const ccPendientes=SURGS.filter(s=>
+    !String(s.id).startsWith('sol') &&
+    ['No confirmado','Sin respuesta'].includes(extractCCStatus(s.obs)) &&
+    s.est==='Programada'
   );
   const b=$('urg-banner');
   if(!b) return;
@@ -1868,9 +1935,16 @@ function checkUrgBanner(){
     $('urg-txt').textContent=`🔴 ${emPend.length} EMERGENCIA(S) pendiente(s) de autorización — Requiere atención inmediata`;
   } else if(emHoy.length){
     b.classList.add('show');
-    $('urg-txt').textContent=`🔴 EMERGENCIA activa: ${emHoy[0].proc} · ${emHoy[0].or==='QA'?'Q.Amb':emHoy[0].or} · ${emHoy[0].hora} — ${emHoy[0].pac}`;
+    $('urg-txt').textContent=`🔴 EMERGENCIA activa: ${emHoy[0].proc} · ${orLabel(emHoy[0].or)} · ${emHoy[0].hora} — ${emHoy[0].pac}`;
+  } else if(ccPendientes.length && CU?.role==='admin'){
+    b.style.background='var(--amb)';
+    b.classList.add('show');
+    $('urg-txt').textContent=`⚠️ ${ccPendientes.length} cirugía(s) con reporte negativo del Call Center requieren decisión`;
+    const btn=$('urg-ver');
+    if(btn)btn.onclick=()=>{goPage('cirugias');setTimeout(()=>setCirTab('cc'),250);};
   } else {
     b.classList.remove('show');
+    b.style.background='';
   }
 }
 function updateNB(){
@@ -2061,10 +2135,16 @@ function renderTL(q,list){
   });
 }
 
-function mkRow(s,showD){
+function mkRow(s,showD,showCC){
   const isE=isEmerg(s.pri);
   const tr=document.createElement('tr');if(isE&&s.est==='Programada')tr.className='trU';
   const isAdmin=CU?.role==='admin';
+  const ccStatus=extractCCStatus(s.obs);
+  const ccCausa=extractCCCausa(s.obs);
+  // Resaltar filas con reporte CC negativo
+  if(ccStatus==='No confirmado')tr.style.background='#FFF5F5';
+  else if(ccStatus==='Sin respuesta')tr.style.background='#FFFBF0';
+
   let c='';
   if(showD)c+=`<td data-label="Fecha">${dtf(s.fecha)}</td>`;
   c+=`<td data-label="Hora" style="font-weight:700;font-family:monospace">${s.hora}</td>
@@ -2077,6 +2157,18 @@ function mkRow(s,showD){
   c+=`<td data-label="Estado"><span class="badge ${EC[s.est]||'bgy'}">${s.est}</span>`;
   if(s.durReal){c+=` <span style="font-size:10px;color:var(--mut)">${s.durReal}min real</span>`;}
   c+=`</td>`;
+
+  // Columna Call Center — solo en tab CC
+  if(showCC){
+    if(ccStatus){
+      const ccColor=ccStatus==='Confirmado'?'var(--grn)':ccStatus==='No confirmado'?'var(--red)':'#9A6200';
+      const ccIcon=ccStatus==='Confirmado'?'✅':ccStatus==='No confirmado'?'❌':'📵';
+      c+=`<td><div style="font-size:11px;font-weight:600;color:${ccColor}">${ccIcon} ${ccStatus}</div>${ccCausa?'<div style="font-size:10px;color:var(--mut)">'+ccCausa+'</div>':''}</td>`;
+    } else {
+      c+=`<td><span style="font-size:11px;color:var(--mut)">Sin reporte</span></td>`;
+    }
+  }
+
   // ACCIONES ADMIN
   if(isAdmin){
     let acts='<td style="white-space:nowrap">';
@@ -2275,18 +2367,50 @@ $('w-next').addEventListener('click',()=>{wOff++;renderAgenda();});
 // ═══════════════════════════════════════════════════
 // CIRUGÍAS LISTADO
 // ═══════════════════════════════════════════════════
+let cirTab='all';
+function setCirTab(t){
+  cirTab=t;
+  document.querySelectorAll('[data-cirt]').forEach(el=>el.classList.toggle('on',el.dataset.cirt===t));
+  // Mostrar/ocultar columna CC
+  const ccHdr=$('cc-col-hdr');
+  if(ccHdr)ccHdr.style.display=t==='cc'?'':'none';
+  renderAllSurgs();
+}
+
 function renderAllSurgs(){
+  if(CU?.role==='admin'){
+    const tabs=$('cir-tabs');if(tabs)tabs.style.display='flex';
+  }
   renderAvailPanel(iso(D), 'avail-panel-cir');
   const fO=$('f-or').value,fE=$('f-est').value,fP=$('f-pri').value;
-  // Excluir solicitudes pendientes (sol%) — mostrar solo cirugías confirmadas/procesadas
   let list=SURGS.filter(s=>!(String(s.id).startsWith('sol')&&s.est==='Pendiente'));
   if(fO)list=list.filter(s=>s.or===fO);
   if(fE)list=list.filter(s=>s.est===fE);
   if(fP)list=list.filter(s=>s.pri===fP);
+
+  // Tab Revisión CC: solo cirugías con reporte negativo del Call Center
+  const showCC = cirTab==='cc';
+  if(showCC){
+    list=list.filter(s=>['No confirmado','Sin respuesta'].includes(extractCCStatus(s.obs)));
+  }
+
   list.sort((a,b)=>b.fecha.localeCompare(a.fecha)||b.hora.localeCompare(a.hora));
+
+  // Actualizar badge del tab CC
+  const ccCount=SURGS.filter(s=>
+    !String(s.id).startsWith('sol') &&
+    ['No confirmado','Sin respuesta'].includes(extractCCStatus(s.obs)) &&
+    s.est==='Programada'
+  ).length;
+  const ccNb=$('cc-review-nb');
+  if(ccNb){ccNb.textContent=ccCount;ccNb.style.display=ccCount?'inline-flex':'none';}
+
   const tb=$('tb-all');tb.innerHTML='';
-  if(!list.length){tb.innerHTML='<tr><td colspan="9" style="text-align:center;padding:20px;color:var(--mut)">Sin cirugías registradas con estos filtros.</td></tr>';return;}
-  list.forEach(s=>tb.appendChild(mkRow(s,true)));
+  if(!list.length){
+    tb.innerHTML=`<tr><td colspan="${showCC?10:9}" style="text-align:center;padding:20px;color:var(--mut)">${showCC?'No hay cirugías pendientes de revisión del Call Center.':'Sin cirugías registradas con estos filtros.'}</td></tr>`;
+    return;
+  }
+  list.forEach(s=>tb.appendChild(mkRow(s,true,showCC)));
 }
 ['f-or','f-est','f-pri'].forEach(id=>$(id).addEventListener('change',renderAllSurgs));
 
@@ -2336,27 +2460,69 @@ function toggleExtramural(){
 }
 
 let isEmergMode=false;
+function calcEdad(){
+  const fnac=$('c-fnac').value;
+  if(!fnac){$('c-edad-txt').value='';$('c-edad').value='';return;}
+  const hoy=new Date(), nac=new Date(fnac+'T12:00:00');
+  let edad=hoy.getFullYear()-nac.getFullYear();
+  const m=hoy.getMonth()-nac.getMonth();
+  if(m<0||(m===0&&hoy.getDate()<nac.getDate()))edad--;
+  $('c-edad-txt').value=edad+' años';
+  $('c-edad').value=edad;
+}
+
 function openCirugia(emerg=false){
   isEmergMode=emerg;
-  const isReq=['medico','residente','anestesiologo'].includes(CU?.role);
-  $('cir-mt').textContent=emerg?'🔴 CIRUGÍA DE EMERGENCIA / URGENCIA':isReq?'Solicitar cirugía':'Programar cirugía';
+  const isAdmin=CU?.role==='admin';
+  const isEsp=['medico','residente','anestesiologo'].includes(CU?.role);
+  isReq=isEsp;
+
+  // Mostrar/ocultar campos según rol
+  const hide=(id,h)=>{const el=$(id);if(el)el.style.display=h?'none':'';};
+  const show=(id)=>{const el=$(id);if(el)el.style.display='';};
+
+  // Campos SOLO admin
+  hide('c-or-box',    isEsp);
+  hide('c-equipo-box',isEsp);
+  hide('c-res-box',   isEsp);
+  hide('c-pq-box',    isEsp);
+  hide('c-hc-box',    isEsp);
+
+  // Equipamiento — visible para TODOS
+  show('c-equ-box');
+
+  // Especialidad: texto fijo para especialistas, selector para admin
+  const espDisp=$('c-esp-display'), espSel=$('c-esp');
+  if(espDisp && espSel){
+    if(isEsp){
+      espDisp.style.display='block'; espSel.style.display='none';
+      espDisp.textContent=CU?.spec||'Sin especialidad asignada';
+      espDisp.dataset.val=CU?.spec||'';
+    } else {
+      espDisp.style.display='none'; espSel.style.display='block';
+    }
+  }
+
+  // Médico responsable: nombre fijo para especialistas, selector para admin
+  const cirDisp=$('c-cir-display'), cirBox=$('c-equipo-box');
+  if(isEsp){
+    if(cirDisp){cirDisp.style.display='';$('c-cir-nombre').textContent=CU?.name||'';}
+  } else {
+    if(cirDisp)cirDisp.style.display='none';
+  }
+
+  $('cir-mt').textContent=emerg?'🔴 CIRUGÍA DE EMERGENCIA / URGENCIA':isEsp?'Solicitar cirugía':'Programar cirugía';
   $('cir-mh').className='mh'+(emerg?' urg':'');
   $('emerg-alert').style.display=emerg?'flex':'none';
   $('save-cir').className='btn '+(emerg?'btn-u':'btn-p');
-  $('save-cir').innerHTML=isReq?'<i class="ti ti-send"></i>Enviar solicitud':'<i class="ti ti-check"></i>Guardar';
+  $('save-cir').innerHTML=isEsp?'<i class="ti ti-send"></i>Enviar solicitud':'<i class="ti ti-check"></i>Guardar';
   $('c-fecha').value=iso(D);
-// Test Supabase connection on load
-supa.from('users').select('id',{count:'exact',head:true}).then(({error,count})=>{
-  const el=$('live-indicator');
-  if(error){
-    if(el){el.style.background='var(--red-l)';el.querySelector('.ldot').style.background='var(--red)';}
-    if($('live-txt'))$('live-txt').textContent='Sin conexión';
-  }
-});
   $('c-hora').value=emerg?new Date().toTimeString().slice(0,5):'09:00';
   $('c-pri').value=emerg?'Emergencia':'Electiva';
-  ['c-proc','c-pac','c-equ','c-obs','c-hc','c-pq','c-tel'].forEach(id=>{if($(id))$(id).value='';});
-  $('c-edad').value='';
+  ['c-proc','c-pac','c-equ','c-obs','c-hc','c-pq','c-tel','c-ced'].forEach(id=>{if($(id))$(id).value='';});
+  if($('c-fnac'))$('c-fnac').value='';
+  if($('c-edad-txt'))$('c-edad-txt').value='';
+  if($('c-edad'))$('c-edad').value='';
   if($('c-extramural')){$('c-extramural').checked=false;toggleExtramural();}
   $('conf-box').style.display='none';
   populateForms();
@@ -2376,29 +2542,40 @@ function openEmerg(){openCirugia(true);}
 });
 $('save-cir').addEventListener('click',()=>{
   const f=$('c-fecha').value,h=$('c-hora').value,proc=$('c-proc').value.trim();
-  const esp=$('c-esp').value,or=$('c-or').value,cir=$('c-cir').value;
-  const ane=$('c-ane').value,dur=~~$('c-dur').value||90;
+  const esp=$('c-esp-display')?.style.display!=='none'
+    ? ($('c-esp-display')?.dataset.val || $('c-esp-display')?.textContent || '')
+    : ($('c-esp')?.value||'');
+  const or=$('c-or')?.value||'Q1';
+  // Para especialistas el médico es el propio usuario
+  const cirDisp=$('c-cir-display');
+  const cir=(cirDisp&&cirDisp.style.display!=='none')
+    ? (CU?.name||'')
+    : ($('c-cir')?.value||CU?.name||'');
+  const ced=$('c-ced')?.value.trim()||'';
+  const fnac=$('c-fnac')?.value||'';
+  const edad=$('c-edad')?.value?parseInt($('c-edad').value):null;
+  const ane=$('c-ane')?.value||'',dur=~~$('c-dur').value||90;
   let pri=$('c-pri').value;if(isEmergMode)pri='Emergencia';
   const pac=$('c-pac').value.trim();
   const pq=$('c-pq')?.value.trim()||'';
-  const hc=$('c-hc').value.trim();
+  const hc=$('c-hc')?.value.trim()||'';
   const tel=$('c-tel')?.value.trim()||'';
-  const edad=$('c-edad').value?parseInt($('c-edad').value):null;
-  const inst=$('c-inst').value;
-  const ayu=$('c-ayu').value;
-  const equ=$('c-equ').value.trim(); // opcional
-  const obs=$('c-obs').value.trim(); // opcional
+  const inst=$('c-inst')?.value||'';
+  const ayu=$('c-ayu')?.value||'';
+  const equ=$('c-equ')?.value.trim()||'';
+  const obs=$('c-obs').value.trim();
   const isExtramural=$('c-extramural')?.checked||false;
   // Validar campos obligatorios (equ y obs son opcionales)
   const missing=[];
   if(!proc) missing.push('Procedimiento');
   if(!pac)  missing.push('Paciente (Apellido, Nombre)');
+  if(!ced)  missing.push('Cédula del paciente');
   if(!cir)  missing.push('Cirujano responsable');
   if(!f)    missing.push('Fecha de cirugía');
   if(!h)    missing.push('Hora de inicio');
   if(!or)   missing.push('Quirófano');
   if(!esp)  missing.push('Especialidad');
-  if(!pq && !isEmergMode && !isExtramural) missing.push('Parte Quirúrgico Nro.');
+  if(!pq && !isEmergMode && !isExtramural && CU?.role==='admin') missing.push('Parte Quirúrgico Nro.');
   if(missing.length>0){
     alert('⚠️ Por favor complete los campos obligatorios:\n\n• '+missing.join('\n• '));
     return;
@@ -2409,9 +2586,11 @@ $('save-cir').addEventListener('click',()=>{
   if(isReq){
     const extFlag=isExtramural?'|EXTRAMURAL:SI':'';
     const telFlag=tel?'|TEL:'+tel:'';
-    const solMeta='SOL_USER:'+CU.name+'|SOL_ID:'+CU.id+'|SOL_EMAIL:'+(CU.email||'')+extFlag+telFlag;
+    const cedFlag=ced?'|CED:'+ced:'';
+    const fnacFlag=fnac?'|FNAC:'+fnac:'';
+    const solMeta='SOL_USER:'+CU.name+'|SOL_ID:'+CU.id+'|SOL_EMAIL:'+(CU.email||'')+extFlag+telFlag+cedFlag+fnacFlag;
     const solObs=[obs,solMeta].filter(Boolean).join(' || ');
-    const solRow={id:'sol'+Date.now(),fecha:f,hora:h,proc,esp,cir,ane:ane||null,or_id:or,dur,pri,pac,hc:(!isExtramural&&hc)?hc:null,edad:edad||null,inst:inst||null,ayu:ayu||null,equ:equ||null,obs:solObs,est:'Pendiente',motivo:null};
+    const solRow={id:'sol'+Date.now(),fecha:f,hora:h,proc,esp,cir:cir||CU.name,ane:ane||null,or_id:or,dur,pri,pac,hc:(!isExtramural&&hc)?hc:null,edad:edad||null,inst:inst||null,ayu:ayu||null,equ:equ||null,obs:solObs,est:'Pendiente',motivo:null};
     supa.from('surgeries').insert([solRow]).then(async({error})=>{
       if(error){alert('Error al enviar solicitud: '+error.message);return;}
       await refreshSurgs();
@@ -2447,7 +2626,8 @@ $('save-cir').addEventListener('click',()=>{
     const sid='s'+Date.now();
     const extNote=isExtramural?'[EXTRAMURAL]':null;
     const telNote=tel?'TEL_PAC:'+tel:null;
-    const srow={id:sid,fecha:f,hora:h,proc,esp,cir,ane:ane||'Por asignar',or_id:or,dur,pri,pac,hc:(!isExtramural&&hc)?hc:null,edad:edad||null,inst:inst||null,ayu:ayu||null,est:'Programada',obs:[pq?'PQ:'+pq:null,extNote,telNote,obs].filter(Boolean).join(' | ')||null,equ:equ||null};
+    const cedNote=ced?'CED:'+ced:null;
+    const srow={id:sid,fecha:f,hora:h,proc,esp,cir,ane:ane||'Por asignar',or_id:or,dur,pri,pac,hc:(!isExtramural&&hc)?hc:null,edad:edad||null,inst:inst||null,ayu:ayu||null,est:'Programada',obs:[pq?'PQ:'+pq:null,extNote,telNote,cedNote,obs].filter(Boolean).join(' | ')||null,equ:equ||null};
     supa.from('surgeries').insert([srow]).then(async({error})=>{
       if(error){alert('Error al guardar: '+error.message);return;}
       await refreshSurgs();
@@ -2514,7 +2694,7 @@ function renderSolList(){
       <div class="sm">
         <div class="sp">${sol.esE?'<strong style="color:var(--urg)">🔴 EMERGENCIA — </strong>':''}${sol.proc}</div>
         <div class="sd">${sol.fecha} ${sol.hora} · ${orLabel(sol.or)} · ${sol.cir}</div>
-        <div class="sd">Paciente: ${sol.pac}${sol.edad!=null?' ('+sol.edad+' años)':''}${sol.hc?' · HC: '+sol.hc:''}${extractTel(sol.obs)?` · <i class="ti ti-phone" style="font-size:10px"></i> ${extractTel(sol.obs)}`:''} · ${sol.pri} · ${sol.dur} min${sol.aneNom?' · Anest: '+sol.aneNom:''}</div>
+        <div class="sd">Paciente: ${sol.pac}${sol.edad!=null?' ('+sol.edad+' años)':''}${sol.hc?' · HC: '+sol.hc:''}${extractCed(sol.obs)?` · CI: ${extractCed(sol.obs)}`:''}${extractTel(sol.obs)?` · 📞 ${extractTel(sol.obs)}`:''} · ${sol.pri} · ${sol.dur} min${sol.aneNom?' · Anest: '+sol.aneNom:''}</div>
         ${sol.inst||sol.ayu?`<div class="sd">Equipo: ${sol.inst?'Instrumentista: '+sol.inst:''} ${sol.ayu?'· Ayudante: '+sol.ayu:''}</div>`:''}
         ${sol.equ?`<div class="sd">Equipamiento: ${sol.equ}</div>`:''}
         ${sol.obs?`<div class="sd">Obs: ${sol.obs}</div>`:''}
@@ -2527,20 +2707,23 @@ function renderSolList(){
 function openApr(id){
   pendApr=String(id);const sol=SOLS.find(s=>String(s.id)===String(id));if(!sol){alert('No se encontró la solicitud. Recarga la página.');return;}
   populateForms();
-  $('apr-info').innerHTML=`<strong>${sol.proc}</strong><br>Paciente: ${sol.pac}${sol.edad!=null?' ('+sol.edad+' años)':''}${sol.hc?' · HC: '+sol.hc:''}<br>Solicitado para: ${sol.fecha} ${sol.hora} · <span style="color:${PC[sol.pri]||'#888'}">${sol.pri}</span>`;
+  $('apr-info').innerHTML=`<strong>${sol.proc}</strong><br>
+    Paciente: ${sol.pac}${sol.edad!=null?' ('+sol.edad+' años)':''}${sol.hc?' · HC: '+sol.hc:''}
+    ${extractCed(sol.obs)?`<br>Cédula: <strong>${extractCed(sol.obs)}</strong>`:''}
+    ${extractFnac(sol.obs)?`<br>F. nacimiento: ${extractFnac(sol.obs)}`:''}
+    ${extractTel(sol.obs)?`<br>Teléfono: ${extractTel(sol.obs)}`:''}
+    <br>Solicitado para: ${sol.fecha} ${sol.hora} · <span style="color:${PC[sol.pri]||'#888'}">${sol.pri}</span>
+    <br>Solicitante: ${sol.solNom||sol.cir}`;
   // Pre-cargar fecha y hora de la solicitud (modificables)
   if($('apr-fecha'))$('apr-fecha').value=sol.fecha||iso(D);
   if($('apr-hora'))$('apr-hora').value=sol.hora||'09:00';
-  $('apr-or').value=sol.or;
+  $('apr-or').value=sol.or||'Q1';
   if(sol.inst&&$('apr-inst'))$('apr-inst').value=sol.inst;
   if(sol.ayu&&$('apr-ayu'))$('apr-ayu').value=sol.ayu;
   $('apr-obs').value='';
-  // Mostrar campos HC/PQ si es extramural
-  const isExt=sol.obs&&sol.obs.includes('EXTRAMURAL:SI');
-  const hcBox=$('apr-hc-box');
-  if(hcBox)hcBox.style.display=isExt?'block':'none';
   if($('apr-pq'))$('apr-pq').value='';
   if($('apr-hc'))$('apr-hc').value=sol.hc||'';
+  if($('apr-equ'))$('apr-equ').value=sol.equ||'';
   opn('ov-apr');
 }
 $('do-apr').addEventListener('click',async()=>{
@@ -2552,6 +2735,7 @@ $('do-apr').addEventListener('click',async()=>{
   const aprHora=$('apr-hora')?.value||sol.hora;
   const aprHC=$('apr-hc')?.value.trim()||sol.hc||null;
   const aprPQ=$('apr-pq')?.value.trim()||null;
+  const aprEqu=$('apr-equ')?.value.trim()||sol.equ||null;
   // Detectar si se modificó fecha u hora
   const fechaChanged=aprFecha&&aprFecha!==sol.fecha;
   const horaChanged=aprHora&&aprHora!==sol.hora;
@@ -2564,6 +2748,7 @@ $('do-apr').addEventListener('click',async()=>{
     fecha:aprFecha||sol.fecha,
     hora:aprHora||sol.hora,
     hc:aprHC||sol.hc||null,
+    equ:aprEqu||null,
     ane:ane||sol.aneNom||'Por asignar',
     or_id:or,
     inst:aprInst||sol.inst||null,
@@ -3031,8 +3216,27 @@ function showOrHint(orId){
 // CALL CENTER
 // ═══════════════════════════════════════════════════
 let ccSurgId=null;
-// In-memory store for call center confirmations (persists during session, saved to Supabase obs)
-const CC_STORE={};
+// CC_STORE persiste en localStorage por fecha — sobrevive al cerrar sesión
+function getCCStore(fecha){
+  try{return JSON.parse(localStorage.getItem('cc_store_'+fecha)||'{}');}catch(e){return {};}
+}
+function saveCCStore(fecha,store){
+  try{localStorage.setItem('cc_store_'+fecha,JSON.stringify(store));}catch(e){}
+}
+// Proxy para acceder al store del día actual del call center
+const CC_STORE=new Proxy({},{
+  get:(t,id)=>{
+    const fecha=$('cc-fecha')?.value||iso(new Date());
+    return getCCStore(fecha)[id];
+  },
+  set:(t,id,val)=>{
+    const fecha=$('cc-fecha')?.value||iso(new Date());
+    const store=getCCStore(fecha);
+    store[id]=val;
+    saveCCStore(fecha,store);
+    return true;
+  }
+});
 
 function ccSetToday(){$('cc-fecha').value=iso(D);renderCallCenter();}
 function ccNavDate(d){
@@ -3061,7 +3265,7 @@ function renderCallCenter(){
 
 function renderCCList(){
   const fecha=$('cc-fecha').value||iso(D);
-  const surgs=SURGS.filter(s=>s.fecha===fecha&&s.est!=='Cancelada'&&!String(s.id).startsWith('sol'))
+  const surgs=SURGS.filter(s=>s.fecha===fecha&&s.est!=='Cancelada'&&!String(s.id).startsWith('sol')&&!isEmerg(s.pri))
     .sort((a,b)=>a.hora.localeCompare(b.hora));
   const cont=$('cc-list');if(!cont)return;
 
@@ -3167,7 +3371,35 @@ function saveCC(){
   const causa=result==='No confirmado'?(causaTxt||causaSel||'Sin causa especificada'):'';
   const obs=$('cc-obs-nota').value.trim();
   CC_STORE[ccSurgId]={notified:true,result,causa,obs};
+
+  // Persistir estado CC en Supabase para que el admin lo vea en tiempo real
+  const s=SURGS.find(x=>String(x.id)===String(ccSurgId));
+  if(s){
+    const ccTag='CC_STATUS:'+result+(causa?'|CC_CAUSA:'+causa:'')+(obs?'|CC_OBS:'+obs:'');
+    // Limpiar tag anterior y agregar nuevo
+    const obsLimpio=(s.obs||'').replace(/CC_STATUS:[^|]*(\\|CC_CAUSA:[^|]*)?(\\|CC_OBS:[^|]*)?/g,'').replace(/\s*\|\s*$/,'').trim();
+    const nuevoObs=[obsLimpio,ccTag].filter(Boolean).join(' | ');
+    supa.from('surgeries').update({obs:nuevoObs}).eq('id',String(ccSurgId)).then(async()=>{
+      await refreshSurgs();
+      renderDash();renderAllSurgs && renderAllSurgs();
+    });
+    // Actualizar local
+    s.obs=nuevoObs;
+  }
+
   cls('ov-cc-confirm');
+
+  // Si no confirmado o sin respuesta — notificar al admin
+  if(result==='No confirmado'||result==='Sin respuesta'){
+    if(s){
+      const adminUsers=USERS.filter(u=>u.role==='admin'&&u.email);
+      if(adminUsers.length){
+        const subj=`📋 Call Center — ${result}: ${s.pac} · ${s.proc}`;
+        const body=`REPORTE CALL CENTER — ${result.toUpperCase()}\n\nPaciente: ${s.pac}\nProcedimiento: ${s.proc}\nFecha: ${s.fecha} ${s.hora}\nQuirófano: ${orLabel(s.or)}\nCirujano: ${s.cir}\n${causa?'Causa: '+causa+'\n':''}${obs?'Observación: '+obs+'\n':''}\nEsta cirugía requiere revisión. Ingresar al sistema → Panel Cirugías → pestaña "Revisión CC".`;
+        sendEmailResend(adminUsers.map(u=>u.email),subj,body);
+      }
+    }
+  }
   renderCCList();
 }
 

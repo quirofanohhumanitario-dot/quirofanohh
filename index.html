@@ -387,7 +387,7 @@ textarea.fc{resize:vertical}.fr{display:grid;grid-template-columns:1fr 1fr;gap:1
   <div class="urg-banner" id="urg-banner">
     <i class="ti ti-alert-triangle" style="font-size:20px"></i>
     <span id="urg-txt">🔴 Cirugías de EMERGENCIA pendientes</span>
-    <button class="btn btn-sm" style="margin-left:auto;background:#fff;color:var(--urg);border:none;cursor:pointer" onclick="goEmerg()">Ver ahora →</button>
+    <button class="btn btn-sm" id="urg-ver" style="margin-left:auto;background:#fff;color:var(--urg);border:none;cursor:pointer" onclick="urgBannerAction()">Ver ahora →</button>
   </div>
   <div class="topbar">
     
@@ -698,7 +698,7 @@ textarea.fc{resize:vertical}.fr{display:grid;grid-template-columns:1fr 1fr;gap:1
         <!-- QUIRÓFANO — solo admin -->
         <div class="fg" id="c-or-box">
           <label class="fl">Quirófano *</label>
-          <select class="fc" id="c-or"><option value="Q1">Quirófano 1</option><option value="Q2">Quirófano 2</option><option value="Q3">Quirófano 3</option><option value="QA">Quirófano Ambulatorio</option></select>
+          <select class="fc" id="c-or" onchange="togglePQbyOR(this.value)"><option value="Q1">Quirófano 1</option><option value="Q2">Quirófano 2</option><option value="Q3">Quirófano 3</option><option value="QA">Quirófano Ambulatorio</option></select>
         </div>
       </div>
 
@@ -781,7 +781,7 @@ textarea.fc{resize:vertical}.fr{display:grid;grid-template-columns:1fr 1fr;gap:1
         <div class="fg"><label class="fl">Ayudante <span style="font-size:10px;color:var(--mut)">(residente)</span></label><select class="fc" id="apr-ayu"><option value="">— Asignar después —</option></select></div>
       </div>
       <div class="fg"><label class="fl">Quirófano confirmado</label>
-        <select class="fc" id="apr-or" onchange="showOrHint(this.value)"><option value="Q1">Quirófano 1</option><option value="Q2">Quirófano 2</option><option value="Q3">Quirófano 3</option><option value="QA">Quirófano Ambulatorio</option></select>
+        <select class="fc" id="apr-or" onchange="showOrHint(this.value);const pqF=$('apr-pq')?.closest('.fg')||$('apr-pq')?.parentElement;if(pqF)pqF.style.display=this.value==='QA'?'none':'';"><option value="Q1">Quirófano 1</option><option value="Q2">Quirófano 2</option><option value="Q3">Quirófano 3</option><option value="QA">Quirófano Ambulatorio</option></select>
         <div id="or-hint" style="font-size:11px;color:var(--tel);margin-top:4px"></div>
       </div>
       <div class="fr">
@@ -1922,29 +1922,37 @@ function checkUrgBanner(){
     ['Programada','En curso'].includes(s.est) &&
     !String(s.id).startsWith('sol')
   );
-  // Cirugías con reporte negativo del Call Center que necesitan decisión
   const ccPendientes=SURGS.filter(s=>
     !String(s.id).startsWith('sol') &&
     ['No confirmado','Sin respuesta'].includes(extractCCStatus(s.obs)) &&
     s.est==='Programada'
   );
   const b=$('urg-banner');
+  const btn=$('urg-ver');
   if(!b) return;
+
   if(emPend.length && CU?.role==='admin'){
+    urgBannerMode='emerg';
+    b.style.background='';b.style.animation='';
+    if(btn){btn.style.color='var(--urg)';btn.textContent='Ver ahora →';}
     b.classList.add('show');
     $('urg-txt').textContent=`🔴 ${emPend.length} EMERGENCIA(S) pendiente(s) de autorización — Requiere atención inmediata`;
   } else if(emHoy.length){
+    urgBannerMode='emerg';
+    b.style.background='';b.style.animation='';
+    if(btn){btn.style.color='var(--urg)';btn.textContent='Ver ahora →';}
     b.classList.add('show');
     $('urg-txt').textContent=`🔴 EMERGENCIA activa: ${emHoy[0].proc} · ${orLabel(emHoy[0].or)} · ${emHoy[0].hora} — ${emHoy[0].pac}`;
   } else if(ccPendientes.length && CU?.role==='admin'){
-    b.style.background='var(--amb)';
+    urgBannerMode='cc';
+    b.style.background='var(--amb)';b.style.animation='none';
+    if(btn){btn.style.color='var(--amb)';btn.textContent='Revisar →';}
     b.classList.add('show');
     $('urg-txt').textContent=`⚠️ ${ccPendientes.length} cirugía(s) con reporte negativo del Call Center requieren decisión`;
-    const btn=$('urg-ver');
-    if(btn)btn.onclick=()=>{goPage('cirugias');setTimeout(()=>setCirTab('cc'),250);};
   } else {
     b.classList.remove('show');
-    b.style.background='';
+    b.style.background='';b.style.animation='';
+    urgBannerMode='emerg';
   }
 }
 function updateNB(){
@@ -1963,6 +1971,15 @@ function updateNB(){
   const unreadNotifs=NOTIFS.filter(n=>!n.read).length;
   const nc=$('nc');if(nc){nc.textContent=unreadNotifs;nc.style.display=unreadNotifs?'flex':'none';}
   checkUrgBanner();
+}
+let urgBannerMode='emerg';
+function urgBannerAction(){
+  if(urgBannerMode==='cc'){
+    goPage('cirugias');
+    setTimeout(()=>setCirTab('cc'),300);
+  } else {
+    goEmerg();
+  }
 }
 function goEmerg(){
   goPage('solicitudes');
@@ -2452,11 +2469,29 @@ function populateForms(){
 // ═══════════════════════════════════════════════════
 // MODAL CIRUGÍA
 // ═══════════════════════════════════════════════════
+function togglePQbyOR(orVal){
+  // Quirófano Ambulatorio: nunca requiere Parte Quirúrgico
+  const isQA = orVal === 'QA';
+  const isExt = $('c-extramural')?.checked||false;
+  const pqBox=$('c-pq-box'), hcBox=$('c-hc-box');
+  const isEsp=['medico','residente','anestesiologo'].includes(CU?.role);
+  if(pqBox) pqBox.style.display=(isQA||isExt||isEsp)?'none':'';
+  if(hcBox) hcBox.style.display=(isQA||isEsp)?'none':'';
+  // Actualizar label para indicar que no aplica
+  if(pqBox){
+    const lbl=pqBox.querySelector('.fl');
+    if(lbl) lbl.textContent=isQA?'Parte Quirúrgico (no aplica para Q.Ambulatorio)':'Parte Quirúrgico Nro. *';
+  }
+}
+
 function toggleExtramural(){
   const isExt=$('c-extramural').checked;
+  const orVal=$('c-or')?.value||'Q1';
+  const isQA=orVal==='QA';
+  const isEsp=['medico','residente','anestesiologo'].includes(CU?.role);
   const pqBox=$('c-pq-box'), hcBox=$('c-hc-box');
-  if(pqBox) pqBox.style.display=isExt?'none':'block';
-  if(hcBox) hcBox.style.display=isExt?'none':'block';
+  if(pqBox) pqBox.style.display=(isExt||isQA||isEsp)?'none':'';
+  if(hcBox) hcBox.style.display=(isExt||isQA||isEsp)?'none':'';
 }
 
 let isEmergMode=false;
@@ -2526,6 +2561,7 @@ function openCirugia(emerg=false){
   if($('c-extramural')){$('c-extramural').checked=false;toggleExtramural();}
   $('conf-box').style.display='none';
   populateForms();
+  togglePQbyOR($('c-or')?.value||'Q1');
   updatePrintBtns();opn('ov-cir');
 }
 function openEmerg(){openCirugia(true);}
@@ -2575,7 +2611,7 @@ $('save-cir').addEventListener('click',()=>{
   if(!h)    missing.push('Hora de inicio');
   if(!or)   missing.push('Quirófano');
   if(!esp)  missing.push('Especialidad');
-  if(!pq && !isEmergMode && !isExtramural && CU?.role==='admin') missing.push('Parte Quirúrgico Nro.');
+  if(!pq && !isEmergMode && !isExtramural && CU?.role==='admin' && or!=='QA') missing.push('Parte Quirúrgico Nro.');
   if(missing.length>0){
     alert('⚠️ Por favor complete los campos obligatorios:\n\n• '+missing.join('\n• '));
     return;
@@ -2679,7 +2715,7 @@ function renderSolList(){
   // Más reciente primero
   list.sort((a,b)=>String(b.id).localeCompare(String(a.id)));
   const pend=SOLS.filter(s=>s.est==='Pendiente'&&!isEmerg(s.pri));
-  const emrg=SOLS.filter(s=>isEmerg(s.pri)); // contar TODAS las emergencias
+  const emrg=SOLS.filter(s=>s.est==='Pendiente'&&isEmerg(s.pri)); // solo pendientes de aprobación
   const np=$('nb-pend');if(np){np.textContent=pend.length;np.classList.toggle('show',pend.length>0);}
   const ne=$('nb-emerg');if(ne){ne.textContent=emrg.length;ne.classList.toggle('show',emrg.length>0);}
   const cont=$('sol-list');cont.innerHTML='';
@@ -2718,6 +2754,10 @@ function openApr(id){
   if($('apr-fecha'))$('apr-fecha').value=sol.fecha||iso(D);
   if($('apr-hora'))$('apr-hora').value=sol.hora||'09:00';
   $('apr-or').value=sol.or||'Q1';
+  // Ocultar PQ si es Quirófano Ambulatorio
+  const isQA=(sol.or||'Q1')==='QA';
+  const aprPQrow=$('apr-pq')?.closest('.fg')||$('apr-pq')?.parentElement;
+  if(aprPQrow) aprPQrow.style.display=isQA?'none':'';
   if(sol.inst&&$('apr-inst'))$('apr-inst').value=sol.inst;
   if(sol.ayu&&$('apr-ayu'))$('apr-ayu').value=sol.ayu;
   $('apr-obs').value='';

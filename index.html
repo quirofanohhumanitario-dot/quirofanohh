@@ -1,4 +1,4 @@
-!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -555,7 +555,7 @@ textarea.fc{resize:vertical}.fr{display:grid;grid-template-columns:1fr 1fr;gap:1
       <div class="page" id="pg-notif">
         <div class="sh">
           <div class="ptitle" style="margin:0">Notificaciones enviadas</div>
-          <button class="btn btn-sm" onclick="NOTIFS=[];try{localStorage.removeItem('notif_read_'+(CU?.id||''))}catch(e){};renderNC();renderNotif()"><i class="ti ti-trash"></i>Limpiar</button>
+          <button class="btn btn-sm" onclick="clearAllNotifs()"><i class="ti ti-trash"></i>Limpiar</button>
         </div>
         <div class="al al-i" style="margin-bottom:14px"><i class="ti ti-info-circle"></i><div>Correos enviados automáticamente vía <strong>Gmail</strong> (EmailJS) a cirujanos, anestesiólogos y residentes involucrados en cada cirugía.</div></div>
         <div class="card" id="notif-log"></div>
@@ -1680,37 +1680,70 @@ async function refreshSOLS(){
   }
 }
 
-// IDs de notificaciones ya leídas — persisten en localStorage por usuario (sobrevive al cerrar)
+// ── Notificaciones — persistencia en localStorage ──────────────
+// Guardamos dos listas por usuario:
+//   notif_read_{uid}      → IDs marcados como leídos (campanita)
+//   notif_dismissed_{uid} → IDs borrados con "Limpiar" (nunca vuelven a aparecer)
+
+function _notifKey(type){ return `notif_${type}_${CU?.id||'anon'}`; }
+
 function getReadIds(){
-  try{return new Set(JSON.parse(localStorage.getItem('notif_read_'+CU?.id)||'[]'));}catch(e){return new Set();}
+  try{ return new Set(JSON.parse(localStorage.getItem(_notifKey('read'))||'[]')); }catch(e){return new Set();}
+}
+function getDismissedIds(){
+  try{ return new Set(JSON.parse(localStorage.getItem(_notifKey('dismissed'))||'[]')); }catch(e){return new Set();}
 }
 function saveReadId(dbId){
+  if(!dbId) return;
   try{
-    const key='notif_read_'+CU?.id;
+    const key=_notifKey('read');
     const ids=JSON.parse(localStorage.getItem(key)||'[]');
-    if(!ids.includes(dbId)){ids.push(dbId);}
-    // Guardar solo los últimos 500 para no llenar el storage
-    localStorage.setItem(key,JSON.stringify(ids.slice(-500)));
+    if(!ids.includes(String(dbId))) ids.push(String(dbId));
+    localStorage.setItem(key, JSON.stringify(ids.slice(-500)));
   }catch(e){}
 }
+function saveDismissedId(dbId){
+  if(!dbId) return;
+  try{
+    const key=_notifKey('dismissed');
+    const ids=JSON.parse(localStorage.getItem(key)||'[]');
+    if(!ids.includes(String(dbId))) ids.push(String(dbId));
+    localStorage.setItem(key, JSON.stringify(ids.slice(-1000)));
+  }catch(e){}
+}
+
+function clearAllNotifs(){
+  // Marcar todos los IDs actuales como dismissed para que no vuelvan del auto-refresh
+  const dismissed=getDismissedIds();
+  NOTIFS.forEach(n=>{ if(n.dbId){ dismissed.add(String(n.dbId)); saveDismissedId(n.dbId); } });
+  NOTIFS=[];
+  // También limpiar la lista de leídos para que quede todo limpio
+  try{ localStorage.removeItem(_notifKey('read')); }catch(e){}
+  renderNC(); renderNotif(); updateNB();
+}
+
 function markAllRead(){
   NOTIFS.forEach(n=>{
     n.read=true;
     if(n.dbId) saveReadId(n.dbId);
   });
-  renderNC();
-  updateNB();
+  renderNC(); updateNB();
 }
 
 async function refreshNotifs(){
-  const {data}=await supa.from('notifications').select('*').order('created_at',{ascending:false}).limit(100);
+  const {data}=await supa.from('notifications').select('*').order('created_at',{ascending:false}).limit(200);
   if(!data||!data.length) return;
   const readIds=getReadIds();
-  // IDs ya presentes en memoria
-  const existingDbIds=new Set(NOTIFS.filter(n=>n.dbId).map(n=>n.dbId));
+  const dismissedIds=getDismissedIds();
+  const existingDbIds=new Set(NOTIFS.filter(n=>n.dbId).map(n=>String(n.dbId)));
   let newCount=0;
   data.forEach(r=>{
-    if(existingDbIds.has(r.id)) return; // ya en memoria
+    const rid=String(r.id);
+    // Si fue descartado con "Limpiar", NUNCA vuelve a aparecer
+    if(dismissedIds.has(rid)) return;
+    // Si ya está en memoria, no duplicar
+    if(existingDbIds.has(rid)) return;
+    // Filtrar por rol
     const isRelevant=
       (CU?.role==='admin') ||
       (CU?.role==='callcenter' && (r.type||'').includes('call_center')) ||
@@ -1719,26 +1752,20 @@ async function refreshNotifs(){
         ['aprobación','rechazo','cancelación','reprogramación','agendamiento','emergencia'].includes(r.type)
       ));
     if(!isRelevant) return;
-    const alreadyRead=readIds.has(r.id);
+    const alreadyRead=readIds.has(rid);
     NOTIFS.push({
-      id:r.id,
-      dbId:r.id,
+      id:r.id, dbId:r.id,
       tipo:r.type||'info',
       s:{proc:r.msg||'',pac:'',fecha:'',hora:'',or:'Q1',cir:'',ane:'',dur:0,equ:''},
-      to:[],
-      time:r.time||'',
+      to:[], time:r.time||'',
       subj:r.msg||'Nueva notificación',
       body:r.msg||'',
-      read:alreadyRead  // ← usa el estado persistido
+      read:alreadyRead
     });
     if(!alreadyRead) newCount++;
   });
-  // Ordenar por id descendente
   NOTIFS.sort((a,b)=>Number(b.dbId||0)-Number(a.dbId||0));
-  if(newCount>0){
-    renderNC();
-    updateNB();
-  }
+  if(newCount>0){ renderNC(); updateNB(); }
 }
 
 async function refreshUsers(){
@@ -3010,7 +3037,7 @@ function addNotif(s,tipo,extraEmail,motivo){
 }
 function renderNotif(){
   const c=$('notif-log');c.innerHTML='';
-  // Marcar TODAS como leídas al abrir el panel
+  // Marcar TODAS como leídas y persistir en localStorage al abrir
   NOTIFS.forEach(n=>{
     if(!n.read){
       n.read=true;
